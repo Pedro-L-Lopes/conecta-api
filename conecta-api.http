@@ -1,0 +1,6 @@
+@conecta_api_HostAddress = http://localhost:5167
+
+GET {{conecta_api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
