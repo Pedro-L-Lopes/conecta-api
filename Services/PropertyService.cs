@@ -1,68 +1,112 @@
-﻿using conecta_api.context;
+﻿using AutoMapper;
+using conecta_api.context;
 using conecta_api.DTOs.PropertyDTOs;
 using conecta_api.Models;
 using conecta_api.Pagination;
 using conecta_api.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
 
 namespace conecta_api.Services;
 public class PropertyService : IPropertyService
 {
     private readonly AppDbContext _context;
     private readonly IUnityOfWork _uof;
+    private readonly IMapper _mapper;
 
-    public PropertyService(AppDbContext context, IUnityOfWork uof)
+    private readonly IPhotoService _photoService;
+
+    public PropertyService(AppDbContext context, IUnityOfWork uof, IMapper mapper, IPhotoService photoService)
     {
         _context = context;
         _uof = uof;
+        _mapper = mapper;
+        _photoService = photoService;
     }
 
     public async Task<Property> AddProperty(AddPropertyDTO addPropertyDTO)
     {
-        var property = new Property
+        try
         {
-            Title = addPropertyDTO.Title,
-            Description = addPropertyDTO.Description,
-            Price = addPropertyDTO.Price,
-            CondoFee = addPropertyDTO.CondoFee,
-            Area = addPropertyDTO.Area,
-            AreaUnit = addPropertyDTO.AreaUnit,
-            Bedrooms = addPropertyDTO.Bedrooms,
-            Suites = addPropertyDTO.Suites,
-            Bathrooms = addPropertyDTO.Bathrooms,
-            ParkingSpaces = addPropertyDTO.ParkingSpaces,
-            Type = addPropertyDTO.Type,
-            Purpose = addPropertyDTO.Purpose,
-            Address = new Address
+            var property = new Property
             {
-                Street = addPropertyDTO.Address.Street,
-                Number = addPropertyDTO.Address.Number,
-                Neighborhood = addPropertyDTO.Address.Neighborhood,
-                City = addPropertyDTO.Address.City,
-                State = addPropertyDTO.Address.State,
-                ZipCode = addPropertyDTO.Address.ZipCode,
-                Latitude = addPropertyDTO.Address.Latitude,
-                Longitude = addPropertyDTO.Address.Longitude
-            },
-            Photos = addPropertyDTO.Photos,
-            Status = addPropertyDTO.Status,
-            AdvertiserId = addPropertyDTO.AdvertiserId,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
+                Title = addPropertyDTO.Title,
+                Description = addPropertyDTO.Description,
+                Price = addPropertyDTO.Price,
+                CondoFee = addPropertyDTO.CondoFee,
+                Area = addPropertyDTO.Area,
+                AreaUnit = addPropertyDTO.AreaUnit,
+                Bedrooms = addPropertyDTO.Bedrooms,
+                Suites = addPropertyDTO.Suites,
+                Bathrooms = addPropertyDTO.Bathrooms,
+                ParkingSpaces = addPropertyDTO.ParkingSpaces,
+                Type = addPropertyDTO.Type,
+                Purpose = addPropertyDTO.Purpose,
+                Address = new Address
+                {
+                    Street = addPropertyDTO.Address.Street,
+                    Number = addPropertyDTO.Address.Number,
+                    Neighborhood = addPropertyDTO.Address.Neighborhood,
+                    City = addPropertyDTO.Address.City,
+                    State = addPropertyDTO.Address.State,
+                    ZipCode = addPropertyDTO.Address.ZipCode,
+                    Latitude = addPropertyDTO.Address.Latitude,
+                    Longitude = addPropertyDTO.Address.Longitude
+                },
+                Photos = addPropertyDTO.Photos,
+                Status = addPropertyDTO.Status,
+                AdvertiserId = addPropertyDTO.AdvertiserId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
 
-        _context.Properties.Add(property);
+            _context.Properties.Add(property);
+            await _uof.Commit();
 
-        await _context.SaveChangesAsync();
-
-        return property;
+            return property;
+        }
+        catch (DbUpdateException ex)
+        {
+            throw new Exception("Erro ao salvar o imóvel.", ex);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception("Ocorreu um erro ao adicionar o imóvel.", ex);
+        }
     }
 
-    public async Task<PagedList<Property>> GetAvailableProperties(PropertyParameters parameters)
+    public async Task<List<PhotoDTO>> AddPhoto(string propertyId, List<string> img)
     {
-        // Base query: imóveis com status "Disponível"
+        // Faz upload das imagens e obtém as URLs correspondentes
+        var photoUrls = await _photoService.UploadPhotos(img);
+
+        // Busca o imóvel pelo ID
+        var property = await _context.Properties.FindAsync(Guid.Parse(propertyId));
+        if (property == null)
+            throw new Exception("Imóvel não encontrado.");
+
+        // Desserializa a lista de fotos existente ou inicializa uma nova lista
+        var photosList = JsonConvert.DeserializeObject<List<string>>(property.Photos ?? "[]")
+                         ?? new List<string>();
+
+        // Adiciona as novas URLs à lista
+        photosList.AddRange(photoUrls);
+
+        // Atualiza a propriedade com a lista atualizada de fotos
+        property.Photos = JsonConvert.SerializeObject(photosList);
+        _context.Properties.Update(property);
+        await _context.SaveChangesAsync();
+
+        // Retorna um DTO para cada URL adicionada
+        return photoUrls.Select(url => new PhotoDTO { Url = url }).ToList();
+    }
+
+
+
+    public async Task<PagedList<PropertySummaryDTO>> GetAvailableProperties(PropertyParameters parameters)
+    {
         var query = _context.Properties
-            .Include(p => p.Address) // Inclui o endereço
+            .Include(p => p.Address)
             .Where(p => p.Status == "Disponível")
             .AsQueryable();
 
@@ -111,7 +155,7 @@ public class PropertyService : IPropertyService
         {
             query = query.Where(p => p.Type == parameters.Type);
         }
-        
+
         if (!string.IsNullOrEmpty(parameters.Purpose))
         {
             query = query.Where(p => p.Purpose == parameters.Purpose);
@@ -150,6 +194,39 @@ public class PropertyService : IPropertyService
             .Take(parameters.PageSize)
             .ToListAsync();
 
-        return PagedList<Property>.Create(items, totalCount, parameters.PageNumber, parameters.PageSize);
+        var dtos = _mapper.Map<IEnumerable<PropertySummaryDTO>>(items);
+
+        return PagedList<PropertySummaryDTO>.Create(dtos, totalCount, parameters.PageNumber, parameters.PageSize);
     }
+
+    public async Task<PropertyDTO> GetPropertyById(string id)
+    {
+        try
+        {
+            Guid propertyId = Guid.Parse(id);
+
+            var property = await _context.Properties
+                .Include(p => p.Address)
+                .Where(p => p.Status == "Disponível")
+                .FirstOrDefaultAsync(p => p.Id == propertyId);
+
+            if (property == null)
+            {
+                throw new KeyNotFoundException($"Imóvel não encontrado.");
+            }
+
+            var propertyDTO = _mapper.Map<PropertyDTO>(property);
+
+            return propertyDTO;
+        }
+        catch (FormatException ex)
+        {
+            throw new ArgumentException("ID do imóvel está em formato inválido.", ex);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception("Ocorreu um erro ao buscar o imóvel.", ex);
+        }
+    }
+
 }

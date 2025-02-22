@@ -26,7 +26,38 @@ public class PropertyController : ControllerBase
     public async Task<IActionResult> AddProperty([FromBody] AddPropertyDTO addPropertyDTO)
     {
         var property = await _propertyService.AddProperty(addPropertyDTO);
-        return CreatedAtAction(nameof(AddProperty), new {id = property.Id}, property);
+        return CreatedAtAction(nameof(AddProperty), new { id = property.Id }, property);
+    }
+
+    /// <summary>
+    /// Adiciona fotos ao imóvel especificado.
+    /// </summary>
+    /// <param name="id">ID do imóvel (GUID) ao qual a foto será associada.</param>
+    /// <param name="imgs">Arquivos de imagens enviados via formulário.</param>
+    /// <returns>
+    /// 200 (OK) com as urls da imagem salva com sucesso;
+    /// 400 (BadRequest) se nenhuma imagem for enviada.
+    /// </returns>
+    [HttpPost("{id}/photos")]
+    public async Task<IActionResult> AddPhoto(string id, [FromForm] List<IFormFile> imgs)
+    {
+        if (imgs == null || imgs.Count == 0)
+            return BadRequest("Nenhuma imagem foi enviada.");
+
+        var base64Images = new List<string>();
+
+        foreach (var img in imgs)
+        {
+            using var ms = new MemoryStream();
+            await img.CopyToAsync(ms);
+            var imageBytes = ms.ToArray();
+            var base64Image = Convert.ToBase64String(imageBytes);
+            base64Images.Add(base64Image);
+        }
+
+        var photo = await _propertyService.AddPhoto(id, base64Images);
+
+        return Ok(photo);
     }
 
     /// <summary>
@@ -56,6 +87,25 @@ public class PropertyController : ControllerBase
     {
         var properties = await _propertyService.GetAvailableProperties(parameters);
         return Ok(properties);
+    }
+
+    /// <summary>
+    /// Obtém um imóvel específico pelo ID.
+    /// </summary>
+    /// <param name="id">ID do imóvel a ser buscado.</param>
+    /// <returns>Retorna o imóvel encontrado como um objeto PropertyDTO.</returns>
+    /// <response code="200">Retorna o imóvel solicitado.</response>
+    /// <response code="404">Caso o imóvel não seja encontrado.</response>
+    /// <response code="400">Caso o ID seja inválido.</response>
+    [HttpGet("{id}")]
+    [ProducesResponseType(typeof(PropertyDTO), 200)]
+    [ProducesResponseType(404)]
+    [ProducesResponseType(400)]
+    public async Task<ActionResult<PropertyDTO>> GetPropertyById(string id)
+    {
+        var property = await _propertyService.GetPropertyById(id);
+
+        return Ok(property);
     }
 
 }

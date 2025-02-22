@@ -1,4 +1,5 @@
-﻿using conecta_api.context;
+﻿using AutoMapper;
+using conecta_api.context;
 using conecta_api.Services.Interfaces;
 
 namespace conecta_api.Services;
@@ -6,8 +7,10 @@ public class UnityOfWork : IUnityOfWork
 {
    private IPropertyService _propertyService;
     private IAddressService _addressService;
+    private IPhotoService _photoService;
 
     public AppDbContext _context;
+    public IMapper _mapper;
 
     public UnityOfWork(AppDbContext context)
     {
@@ -18,7 +21,7 @@ public class UnityOfWork : IUnityOfWork
     {
         get
         {
-            return _propertyService ??= new PropertyService(_context, this);
+            return _propertyService ??= new PropertyService(_context, this, _mapper, _photoService);
         }
     }
 

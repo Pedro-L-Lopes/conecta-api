@@ -6,5 +6,7 @@ namespace conecta_api.Services.Interfaces;
 public interface IPropertyService
 {
     Task<Property> AddProperty(AddPropertyDTO addPropertyDTO);
-    Task<PagedList<Property>> GetAvailableProperties(PropertyParameters parameters);
+    Task<List<PhotoDTO>> AddPhoto(string propertyId, List<string> img);
+    Task<PagedList<PropertySummaryDTO>> GetAvailableProperties(PropertyParameters parameters);
+    Task<PropertyDTO> GetPropertyById(string Id);
 }
