@@ -112,6 +112,7 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Configuration.AddJsonFile("secrets.json", optional: true, reloadOnChange: true);
 
 var app = builder.Build();
 
