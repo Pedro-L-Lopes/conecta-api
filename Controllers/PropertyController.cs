@@ -108,4 +108,21 @@ public class PropertyController : ControllerBase
         return Ok(property);
     }
 
+    /// <summary>
+    /// Obtém uma lista de imóveis disponíveis com base nos parâmetros fornecidos.
+    /// </summary>
+    /// <param name="parameters">Paginação</param>
+    /// <param name="propertiesIds">Lista de IDs</param>
+    /// <returns>Retorna uma lista paginada de imóveis favoritados disponíveis.</returns>
+    /// <remarks>
+    /// </remarks>
+    [HttpPost("favorites")]
+    public async Task<IActionResult> GetAvailableProperties([FromQuery] PropertyParameters parameters, [FromBody] List<string> propertiesIds)
+    {
+        List<Guid> propertiesGuids = propertiesIds.Select(id => Guid.Parse(id)).ToList();
+
+        var properties = await _propertyService.GetFavoriteProperties(parameters, propertiesGuids);
+        return Ok(properties);
+    }
+
 }

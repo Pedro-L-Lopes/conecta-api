@@ -229,4 +229,99 @@ public class PropertyService : IPropertyService
         }
     }
 
+    public async Task<PagedList<PropertySummaryDTO>> GetFavoriteProperties(PropertyParameters parameters, List<Guid> propertiesIds)
+    {
+        var query = _context.Properties
+            .Include(p => p.Address)
+            .Where(p => propertiesIds.Contains(p.Id) && p.Status == "Disponível")
+            .AsQueryable();
+
+        // Filtros
+        if (!string.IsNullOrEmpty(parameters.City))
+        {
+            query = query.Where(p => p.Address.City == parameters.City);
+        }
+
+        if (!string.IsNullOrEmpty(parameters.Neighborhood))
+        {
+            query = query.Where(p => p.Address.Neighborhood == parameters.Neighborhood);
+        }
+
+        if (parameters.Bedrooms.HasValue)
+        {
+            query = query.Where(p => p.Bedrooms == parameters.Bedrooms);
+        }
+
+        if (parameters.ParkingSpaces.HasValue)
+        {
+            query = query.Where(p => p.ParkingSpaces == parameters.ParkingSpaces);
+        }
+
+        if (parameters.MinPrice.HasValue)
+        {
+            query = query.Where(p => p.Price >= parameters.MinPrice);
+        }
+
+        if (parameters.MaxPrice.HasValue)
+        {
+            query = query.Where(p => p.Price <= parameters.MaxPrice);
+        }
+
+        if (parameters.MinArea.HasValue)
+        {
+            query = query.Where(p => p.Area >= parameters.MinArea);
+        }
+
+        if (parameters.MaxArea.HasValue)
+        {
+            query = query.Where(p => p.Area <= parameters.MaxArea);
+        }
+
+        if (!string.IsNullOrEmpty(parameters.Type))
+        {
+            query = query.Where(p => p.Type == parameters.Type);
+        }
+
+        if (!string.IsNullOrEmpty(parameters.Purpose))
+        {
+            query = query.Where(p => p.Purpose == parameters.Purpose);
+        }
+
+        // Aplicar ordenação
+        if (!string.IsNullOrEmpty(parameters.OrderBy))
+        {
+            switch (parameters.OrderBy.ToLower())
+            {
+                case "price":
+                    query = parameters.SortDirection == "asc"
+                        ? query.OrderBy(p => p.Price)
+                        : query.OrderByDescending(p => p.Price);
+                    break;
+                case "createdat":
+                    query = parameters.SortDirection == "asc"
+                        ? query.OrderBy(p => p.CreatedAt)
+                        : query.OrderByDescending(p => p.CreatedAt);
+                    break;
+                case "area":
+                    query = parameters.SortDirection == "asc"
+                        ? query.OrderBy(p => p.CreatedAt)
+                        : query.OrderByDescending(p => p.CreatedAt);
+                    break;
+                default:
+                    query = query.OrderBy(p => p.CreatedAt);
+                    break;
+            }
+        }
+
+        // Paginação
+        var totalCount = await query.CountAsync();
+        var items = await query
+            .Skip((parameters.PageNumber - 1) * parameters.PageSize)
+            .Take(parameters.PageSize)
+            .ToListAsync();
+
+        var dtos = _mapper.Map<IEnumerable<PropertySummaryDTO>>(items);
+
+        return PagedList<PropertySummaryDTO>.Create(dtos, totalCount, parameters.PageNumber, parameters.PageSize);
+    }
 }

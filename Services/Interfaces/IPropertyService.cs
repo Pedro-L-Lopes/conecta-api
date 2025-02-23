@@ -9,4 +9,5 @@ public interface IPropertyService
     Task<List<PhotoDTO>> AddPhoto(string propertyId, List<string> img);
     Task<PagedList<PropertySummaryDTO>> GetAvailableProperties(PropertyParameters parameters);
     Task<PropertyDTO> GetPropertyById(string Id);
+    Task<PagedList<PropertySummaryDTO>> GetFavoriteProperties(PropertyParameters parameters, List<Guid> propertiesIds);
 }

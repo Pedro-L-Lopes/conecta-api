@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 namespace conecta_api.DTOs.PropertyDTOs;
 public class PropertyDTO
 {
+    public Guid Id { get; set; }
     public string Title { get; set; }
 
     public string? Description { get; set; }
